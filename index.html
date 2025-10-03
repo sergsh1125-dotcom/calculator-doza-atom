@@ -1,160 +1,265 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>calculator-doza</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
-    h1 { font-size: 20px; }
-    .container { max-width: 900px; margin: auto; background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 0 8px rgba(0,0,0,0.1); }
+    h1 { font-size: 20px; margin-bottom: 6px; }
+    .container { max-width: 980px; margin: auto; background: #fff; padding: 18px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.08); }
     .grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(200px,1fr)); gap: 10px; }
-    label { font-size: 14px; display: block; margin-bottom: 10px; }
-    input, select { width: 100%; padding: 6px; margin-top: 3px; }
+    label { font-size: 14px; display: block; }
+    input, select { width: 100%; padding: 6px; margin-top: 6px; box-sizing: border-box; }
     table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
-    th, td { border: 1px solid #ccc; padding: 6px; text-align: center; }
-    th { background: #eee; }
-    button { padding: 8px 12px; margin-top: 10px; cursor: pointer; border-radius: 5px; border: none; }
+    th, td { border: 1px solid #ddd; padding: 6px; text-align: center; }
+    th { background: #f0f0f0; }
+    button { padding: 8px 12px; margin-top: 10px; cursor: pointer; border-radius: 6px; border: none; }
     .btn-blue { background: #007bff; color: white; }
-    .btn-gray { background: #ccc; }
+    .btn-gray { background: #6c757d; color: white; }
+    .controls { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+    .note { font-size:12px; color:#666; margin-top:10px; }
+    .error { color:#b00020; font-weight:600; margin-top:8px; }
+    @media (max-width:520px){ .grid{grid-template-columns:1fr} }
   </style>
 </head>
 <body>
-<div class="container">
-  <h1>calculator-doza — калькулятор дозы при ядерном взрыве</h1>
-  <div class="grid">
-    <label>Pt — мощность дозы в момент измерения (мЗв/ч)
-      <input type="number" id="Pt" value="0.5" step="any">
-    </label>
-    <label>t — время измерения Pt (ч)
-      <input type="number" id="tMeasure" value="2" step="any">
-    </label>
-    <label>Ta — начало облучения (ч)
-      <input type="number" id="Ta" value="3" step="any">
-    </label>
-    <label>Tb — конец облучения (ч)
-      <input type="number" id="Tb" value="10" step="any">
-    </label>
-    <label>Kz — коэффициент защиты
-      <select id="Kz">
-        <option>1</option><option>2</option><option>4</option><option>10</option><option>50</option><option>100</option><option>500</option>
-      </select>
-    </label>
+  <div class="container">
+    <h1>calculator-doza — калькулятор дозы при ядерном взрыве</h1>
+    <div class="grid">
+      <label>Pt — мощность дозы в момент измерения (мЗв/ч)
+        <input type="number" id="Pt" value="0.5" step="any" min="0">
+      </label>
+      <label>t — время измерения Pt (ч)
+        <input type="number" id="tMeasure" value="2" step="any" min="0.0001">
+      </label>
+      <label>Ta — начало облучения (ч)
+        <input type="number" id="Ta" value="3" step="any" min="0">
+      </label>
+      <label>Tb — конец облучения (ч)
+        <input type="number" id="Tb" value="10" step="any" min="0">
+      </label>
+      <label>Kz — коэффициент защиты
+        <select id="Kz">
+          <option>1</option><option>2</option><option>4</option><option>10</option><option>50</option><option>100</option><option>500</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="controls">
+      <button id="btnCalc" class="btn-blue">Рассчитать дозу</button>
+      <button id="btnCSV" class="btn-gray">Сохранить в Excel (CSV)</button>
+      <button id="btnCopy" class="btn-gray">Копировать результат</button>
+      <div id="error" class="error" style="display:none"></div>
+    </div>
+
+    <h3>Результаты</h3>
+    <p>P1 (через 1 час): <strong><span id="P1">0</span></strong> мЗв/ч</p>
+    <p>D (доза Ta→Tb): <strong><span id="dose">0</span></strong> мЗв</p>
+
+    <h3>График спада мощности дозы</h3>
+    <canvas id="chart" height="220"></canvas>
+
+    <h3>Таблица доз</h3>
+    <table id="doseTable">
+      <thead>
+        <tr><th>Начало (ч)</th><th>Конец (ч)</th><th>Часы</th><th>Доза (мЗв)</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <p class="note">Модель использует степенной закон спада с показателем -1.2. Это упрощённая модель — для оперативных решений опирайтесь на официальные измерения и инструкции служб гражданской защиты.</p>
   </div>
 
-  <h3>Результаты</h3>
-  <p>P1 (через 1 час): <span id="P1">0</span> мЗв/ч</p>
-  <p>D (доза Ta→Tb): <span id="dose">0</span> мЗв</p>
-
-  <h3>График спада мощности дозы</h3>
-  <canvas id="chart" height="200"></canvas>
-
-  <h3>Таблица доз</h3>
-  <table id="doseTable">
-    <thead>
-      <tr><th>Начало (ч)</th><th>Конец (ч)</th><th>Часы</th><th>Доза (мЗв)</th></tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-
-  <button class="btn-blue" onclick="downloadCSV()">Сохранить в Excel (CSV)</button>
-  <button class="btn-gray" onclick="copyResult()">Копировать результат</button>
-
-  <p style="font-size:12px;color:gray;">Модель использует степенной закон (-1.2). Для реальных решений ориентируйтесь на официальные источники.</p>
-</div>
-
 <script>
-function calc() {
-  const Pt = parseFloat(document.getElementById('Pt').value);
-  const t = parseFloat(document.getElementById('tMeasure').value);
-  const Ta = parseFloat(document.getElementById('Ta').value);
-  const Tb = parseFloat(document.getElementById('Tb').value);
-  const Kz = parseFloat(document.getElementById('Kz').value);
+(function(){
+  const el = id => document.getElementById(id);
+  const fmt = (n, d=6) => (Number.isFinite(n) ? Number(n).toFixed(d) : '0.000000');
 
-  if (isNaN(Pt) || isNaN(t) || t<=0) return;
-  const P1 = Pt * Math.pow(t, 1.2);
-  let dose = 0;
-  if (Ta>0 && Tb>Ta) {
-    dose = (5 * P1 * (Math.pow(Ta,-1.2) - Math.pow(Tb,-1.2)))/Kz;
-    if (dose<0) dose=0;
-  }
+  const PtEl = el('Pt'), tEl = el('tMeasure'), TaEl = el('Ta'), TbEl = el('Tb'), KzEl = el('Kz');
+  const P1El = el('P1'), doseEl = el('dose'), errEl = el('error');
+  const tbody = document.querySelector('#doseTable tbody');
+  const btnCalc = el('btnCalc'), btnCSV = el('btnCSV'), btnCopy = el('btnCopy');
 
-  document.getElementById('P1').innerText = P1.toFixed(6);
-  document.getElementById('dose').innerText = dose.toFixed(6);
-
-  const data=[];
-  for (let i=1;i<=96;i++){
-    data.push({x:i, y: P1*Math.pow(i,-1.2)});
-  }
-  chart.data.datasets[0].data=data;
-  chart.update();
-
-  const tbody=document.querySelector('#doseTable tbody');
-  tbody.innerHTML='';
-  let total=0;
-  let cursor=Math.floor(Ta);
-  let firstEnd=Math.min(Tb, Math.ceil(Ta));
-  if (firstEnd>Ta){
-    let Dseg=(5*P1*(Math.pow(Ta,-1.2)-Math.pow(firstEnd,-1.2)))/Kz;
-    tbody.innerHTML+=row(Ta,firstEnd,firstEnd-Ta,Dseg);
-    total+=Dseg;
-  }
-  cursor=Math.ceil(Ta);
-  while(cursor+1<=Tb){
-    let Dseg=(5*P1*(Math.pow(cursor,-1.2)-Math.pow(cursor+1,-1.2)))/Kz;
-    tbody.innerHTML+=row(cursor,cursor+1,1,Dseg);
-    total+=Dseg;
-    cursor++;
-  }
-  if (cursor<Tb){
-    let Dseg=(5*P1*(Math.pow(cursor,-1.2)-Math.pow(Tb,-1.2)))/Kz;
-    tbody.innerHTML+=row(cursor,Tb,Tb-cursor,Dseg);
-    total+=Dseg;
-  }
-  tbody.innerHTML+=`<tr style="font-weight:bold"><td colspan=3>Итого</td><td>${total.toFixed(6)}</td></tr>`;
-
-  return {P1,dose};
-}
-
-function row(s,e,h,d){
-  return `<tr><td>${s}</td><td>${e}</td><td>${h.toFixed(3)}</td><td>${d.toFixed(6)}</td></tr>`;
-}
-
-function downloadCSV(){
-  const rows=[];
-  document.querySelectorAll('#doseTable tr').forEach(tr=>{
-    const cells=[...tr.querySelectorAll('td,th')].map(td=>td.innerText);
-    rows.push(cells.join(","));
+  // Chart.js init
+  const ctx = el('chart').getContext('2d');
+  const chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: [], // часы
+      datasets: [{
+        label: 'мЗв/ч',
+        data: [],
+        borderColor: 'rgba(0,123,255,1)',
+        backgroundColor: 'rgba(0,123,255,0.1)',
+        fill: false,
+        tension: 0.2,
+        pointRadius: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: {
+          title: { display: true, text: 'Часы (τ)' },
+          ticks: { maxTicksLimit: 12 }
+        },
+        y: {
+          title: { display: true, text: 'мЗв/ч' }
+        }
+      },
+      plugins: {
+        tooltip: {
+          callbacks: {
+            label: (ctx) => ` ${Number(ctx.parsed.y).toExponential(3)} mSv/h`
+          }
+        }
+      }
+    }
   });
-  const csv=rows.join("
-");
-  const blob=new Blob([csv],{type:'text/csv'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');
-  a.href=url;a.download='calculator-doza.csv';
-  a.click();
-  URL.revokeObjectURL(url);
-}
 
-function copyResult(){
-  const P1=document.getElementById('P1').innerText;
-  const D=document.getElementById('dose').innerText;
-  navigator.clipboard.writeText(`P1=${P1} mSv/h
-D=${D} mSv`);
-}
+  function showError(msg) {
+    if (!msg) { errEl.style.display = 'none'; errEl.textContent = ''; }
+    else { errEl.style.display = 'block'; errEl.textContent = msg; }
+  }
 
-const ctx=document.getElementById('chart').getContext('2d');
-const chart=new Chart(ctx,{
-  type:'line',
-  data:{datasets:[{label:'мЗв/ч', data:[], borderColor:'blue', fill:false}]},
-  options:{scales:{x:{title:{display:true,text:'Часы'}},y:{title:{display:true,text:'мЗв/ч'}}}}
-});
+  function buildSegments(Ta, Tb) {
+    // разбиваем [Ta, Tb] на сегменты: частичный первый, полные часы, частичный последний
+    const segs = [];
+    let s = Ta;
+    const EPS = 1e-12;
+    while (s < Tb - EPS) {
+      let e;
+      if (Math.abs(s - Math.round(s)) < 1e-9) {
+        // s почти целое
+        e = Math.min(s + 1, Tb);
+      } else {
+        e = Math.min(Math.ceil(s), Tb);
+      }
+      if (e <= s) { e = Tb; } // safety
+      segs.push({ start: s, end: e, hours: e - s });
+      s = e;
+    }
+    return segs;
+  }
 
-['Pt','tMeasure','Ta','Tb','Kz'].forEach(id=>{
-  document.getElementById(id).addEventListener('input',calc);
-});
+  function calcOnce() {
+    showError('');
+    const Pt = parseFloat(PtEl.value);
+    const t = parseFloat(tEl.value);
+    const Ta = parseFloat(TaEl.value);
+    const Tb = parseFloat(TbEl.value);
+    const Kz = parseFloat(KzEl.value);
 
-calc();
+    // basic validation
+    if (!isFinite(Pt) || !isFinite(t) || t <= 0) { showError('Ошибка: корректно укажите Pt и время t (t > 0).'); return null; }
+    if (!isFinite(Ta) || !isFinite(Tb) || Ta < 0 || Tb <= 0) { showError('Ошибка: Ta и Tb должны быть >= 0, Tb > Ta.'); return null; }
+    if (Tb <= Ta) { showError('Ошибка: Ta должно быть меньше Tb.'); return null; }
+    if (!isFinite(Kz) || Kz <= 0) { showError('Ошибка: некорректный коэффициент защиты Kz.'); return null; }
+
+    // compute P1 and dose
+    const P1 = Pt * Math.pow(t, 1.2);
+    let totalDose = 0;
+
+    // build table segments
+    const segments = buildSegments(Ta, Tb);
+    const tableRows = segments.map(s => {
+      // Dseg = 5 * P1 * (s.start^-1.2 - s.end^-1.2) / Kz
+      const Dseg = (5 * P1 * (Math.pow(s.start, -1.2) - Math.pow(s.end, -1.2))) / Kz;
+      const d = Dseg > 0 ? Dseg : 0;
+      totalDose += d;
+      return { start: s.start, end: s.end, hours: s.hours, dose: d };
+    });
+
+    // update DOM: P1, dose
+    P1El.textContent = fmt(P1, 6);
+    doseEl.textContent = fmt(totalDose, 6);
+
+    // update table
+    tbody.innerHTML = '';
+    tableRows.forEach(r => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${r.start}</td><td>${r.end}</td><td>${r.hours.toFixed(3)}</td><td>${r.dose.toFixed(6)}</td>`;
+      tbody.appendChild(tr);
+    });
+    const trSum = document.createElement('tr');
+    trSum.style.fontWeight = '700';
+    trSum.innerHTML = `<td colspan="3">Итого</td><td>${totalDose.toFixed(6)}</td>`;
+    tbody.appendChild(trSum);
+
+    // chart: hours 1..maxH (use max of 96 or Tb rounded up)
+    const maxH = Math.max( Math.ceil(Tb), 96 );
+    const labels = [];
+    const values = [];
+    for (let i = 1; i <= maxH; i++) {
+      labels.push(i);
+      values.push(P1 * Math.pow(i, -1.2));
+    }
+    chart.data.labels = labels;
+    chart.data.datasets[0].data = values;
+    chart.update();
+
+    return { P1, totalDose, tableRows };
+  }
+
+  // buttons
+  btnCalc.addEventListener('click', () => {
+    calcOnce();
+  });
+
+  btnCSV.addEventListener('click', () => {
+    const res = calcOnce(); // recalc to be sure table present
+    if (!res) return;
+    const rows = [];
+    rows.push(['start_h','end_h','hours','dose_mSv'].join(','));
+    // read table rows directly for fidelity
+    document.querySelectorAll('#doseTable tbody tr').forEach((tr, idx) => {
+      const cells = [...tr.querySelectorAll('td')].map(td => td.innerText);
+      rows.push(cells.join(','));
+    });
+    // build blob & download
+    const csv = rows.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'calculator-doza.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+
+  btnCopy.addEventListener('click', async () => {
+    const res = calcOnce();
+    if (!res) return;
+    const txt = `P1=${fmt(res.P1,6)} mSv/h\nD=${fmt(res.totalDose,6)} mSv`;
+    try {
+      await navigator.clipboard.writeText(txt);
+      // краткое визуальное подтверждение
+      showError('Результат скопирован в буфер обмена (временно сообщение).');
+      setTimeout(() => showError(''), 1500);
+    } catch (e) {
+      showError('Не удалось скопировать в буфер обмена: ' + (e && e.message ? e.message : e));
+    }
+  });
+
+  // autofire calc on input changes but user can press button too
+  ['input','change'].forEach(evt => {
+    [PtEl, tEl, TaEl, TbEl, KzEl].forEach(input => input.addEventListener(evt, () => {
+      // don't spam — do a quick debounce (simple)
+      if (input._timer) clearTimeout(input._timer);
+      input._timer = setTimeout(() => {
+        calcOnce();
+        input._timer = null;
+      }, 300);
+    }));
+  });
+
+  // initial calc
+  calcOnce();
+})();
 </script>
 </body>
 </html>
